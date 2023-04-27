@@ -122,3 +122,20 @@ class JWTLogIn(APIView):
             return Response({"token": token})
         else:
             return Response({"error": "wrong password"})
+
+
+class KakaoLogIn(APIView):
+    def post(self, request):
+        code = request.data.get("code")
+        access_token = request.post(
+            "https://kauth.kakao.com/oauth/token",
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+            data={
+                "grant_type": "authorization_code",
+                "client_id": "55d3ac3313b9622a2c8f0f3a1bf1f3cc",
+                "redirect_uri": "http://127.0.0,1:3000/social/kakao",
+                "code": code,
+            },
+        )
+        print(access_token.json())
+        return Response()

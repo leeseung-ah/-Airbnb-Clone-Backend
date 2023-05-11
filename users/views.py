@@ -1,4 +1,5 @@
 import jwt
+import requests
 from django.conf import settings
 from django.contrib.auth import authenticate, login, logout
 from rest_framework.response import Response
@@ -124,18 +125,45 @@ class JWTLogIn(APIView):
             return Response({"error": "wrong password"})
 
 
-class KakaoLogIn(APIView):
+class GithubLogIn(APIView):
     def post(self, request):
-        code = request.data.get("code")
-        access_token = request.post(
-            "https://kauth.kakao.com/oauth/token",
-            headers={"Content-Type": "application/x-www-form-urlencoded"},
-            data={
-                "grant_type": "authorization_code",
-                "client_id": "55d3ac3313b9622a2c8f0f3a1bf1f3cc",
-                "redirect_uri": "http://127.0.0,1:3000/social/kakao",
-                "code": code,
-            },
-        )
-        print(access_token.json())
-        return Response()
+        try:
+            code = request.data.get("code")
+            access_token = requests.post(
+                f"https://github.com/login/oauth/access_token?code={code}&client_id=0fa15829f2156d8fe3f3&client_secret={settings.GH_SECRET}",
+                headers={"Accept": "application/json"},
+            )
+            access_token = access_token.json().get("access_token")
+            user_data = requests.get(
+                "https://api.github.com/user",
+                headers={
+                    "Authorization": f"Bearer {access_token}",
+                    "Accept": "application/json",
+                },
+            )
+            user_data = user_data.json()
+            user_emails = requests.get(
+                "https://api.github.com/user/emails",
+                headers={
+                    "Authorization": f"Bearer {access_token}",
+                    "Accept": "application/json",
+                },
+            )
+            user_emails = user_emails.json()
+            try:
+                user = User.objects.get(email=user_emails[0]["email"])
+                login(request, user)
+                return Response(status=status.HTTP_200_OK)
+            except User.DoesNotExist:
+                user = User.objects.create(
+                    username=user_data.get("login"),
+                    email=user_emails[0]["email"],
+                    avatar=user_data.get("avatar_url"),
+                )
+                user.set_unusable_password()
+                user.save()
+                login(request, user)
+                return Response(status=status.HTTP_200_OK)
+        except Exception as e:
+            print(e)
+            return Response(status=status.HTTP_400_BAD_REQUEST)

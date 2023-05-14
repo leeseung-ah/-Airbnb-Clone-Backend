@@ -28,7 +28,8 @@ class User(AbstractUser):
         max_length=150,
         default="",
     )
-    is_host = models.BooleanField(null=True)
+    is_host = models.BooleanField(default=False)
+
     gender = models.CharField(
         max_length=21,
         choices=GenderChoices.choices,
@@ -37,7 +38,7 @@ class User(AbstractUser):
         max_length=16,
         choices=LanguageChoices.choices,
     )
-    curreny = models.CharField(
+    currency = models.CharField(
         max_length=21,
         choices=CurrencyChoices.choices,
     )

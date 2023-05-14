@@ -77,6 +77,51 @@ class ChangePassword(APIView):
             return Response(status=status.HTTP_400_BAD_REQUEST)
 
 
+class SignUp(APIView):
+    def post(self, request):
+        name = request.data.get("name")
+        email = request.data.get("email")
+        username = request.data.get("username")
+        password = request.data.get("password")
+        password2 = request.data.get("password2")
+
+        if password != password2:
+            return Response(
+                {"error": "password is not the same"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            User.objects.get(email=email)
+            return Response(
+                {"error": "email already exists"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except User.DoesNotExist:
+            pass
+
+        try:
+            User.objects.get(username=username)
+            return Response(
+                {"error": "username already exists"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except User.DoesNotExist:
+            pass
+
+        user = User.objects.create(
+            name=name,
+            email=email,
+            username=username,
+        )
+
+        user.set_password(password)
+        user.save()
+
+        login(request, user)
+        return Response({"ok": "account is created!"}, status=status.HTTP_200_OK)
+
+
 class LogIn(APIView):
     def post(self, request):
         username = request.data.get("username")
@@ -92,7 +137,10 @@ class LogIn(APIView):
             login(request, user)
             return Response({"ok": "Welcome!"})
         else:
-            return Response({"error": "wrong password"})
+            return Response(
+                {"error": "wrong password"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
 
 class LogOut(APIView):

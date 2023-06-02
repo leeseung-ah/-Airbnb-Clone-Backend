@@ -1,11 +1,14 @@
 import time
+import datetime
+import pytz
 from django.conf import settings
 from django.utils import timezone
 from rest_framework.views import APIView
+
 from django.db import transaction
 from rest_framework.permissions import IsAuthenticatedOrReadOnly
 
-from rest_framework.status import HTTP_204_NO_CONTENT
+from rest_framework.status import HTTP_204_NO_CONTENT, HTTP_400_BAD_REQUEST
 from rest_framework.response import Response
 from rest_framework.exceptions import (
     NotFound,
@@ -213,17 +216,45 @@ class RoomBookings(APIView):
     def get_object(self, pk):
         try:
             return Room.objects.get(pk=pk)
-        except:
+        except Room.DoesNotExist:
             raise NotFound
 
     def get(self, request, pk):
-        room = self.get_object(pk)
         now = timezone.localtime(timezone.now()).date()
-        bookings = Booking.objects.filter(
-            room=room,
-            kind=Booking.BookingKindChoices.ROOM,
-            check_in__gt=now,
-        )
+        try:
+            month = int(request.query_params.get("month", now.month))
+            year = int(request.query_params.get("year", now.year))
+            if year < now.year:
+                year = now.year
+                month = now.month
+            elif (year == now.year) and (month < now.month):
+                month = now.month
+        except ValueError:
+            month = now.month
+            year = now.year
+
+        date_range_start = datetime.date(year, month, 1)
+        if month == 12:
+            date_range_end = datetime.datetime(year + 1, 1, 1, tzinfo=pytz.UTC)
+        else:
+            date_range_end = datetime.datetime(year, month + 1, 1, tzinfo=pytz.UTC)
+
+        room = self.get_object(pk)
+        if room.owner == request.user:
+            bookings = Booking.objects.filter(
+                room=room,
+                kind=Booking.BookingKindChoices.ROOM,
+                check_in__lte=date_range_end,
+                check_out__gte=date_range_start,
+            )
+        else:
+            bookings = Booking.objects, filter(
+                room=room,
+                kind=Booking.BookingKindChoices.ROOM,
+                check_in__lte=date_range_end,
+                check_out__gte=date_range_start,
+                user=request.user,
+            )
         serializer = PublicBookingSerializer(bookings, many=True)
         return Response(serializer.data)
 
@@ -242,14 +273,14 @@ class RoomBookings(APIView):
             serializer = PublicBookingSerializer(booking)
             return Response(serializer.data)
         else:
-            return Response(serializer.errors)
+            return Response(serializer.errors, status=HTTP_400_BAD_REQUEST)
 
 
 class RoomBookingCheck(APIView):
     def get_object(self, pk):
         try:
             return Room.objects.get(pk=pk)
-        except:
+        except Room.DoesNotExist:
             raise NotFound
 
     def get(self, request, pk):
@@ -263,4 +294,5 @@ class RoomBookingCheck(APIView):
         ).exists()
         if exists:
             return Response({"ok": False})
-        return Response({"ok": True})
+        else:
+            return Response({"ok": True})

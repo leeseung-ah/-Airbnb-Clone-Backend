@@ -241,9 +241,12 @@ class KakaoLogIn(APIView):
             user_data = user_data.json()
             kakao_account = user_data.get("kakao_account")
             profile = kakao_account.get("profile")
+            print(1)
             try:
                 user = User.objects.get(email=kakao_account.get("email"))
+                print(3)
                 login(request, user)
+                print(2)
                 return Response(status=status.HTTP_200_OK)
             except User.DoesNotExist:
                 user = User.objects.create(
@@ -258,4 +261,55 @@ class KakaoLogIn(APIView):
                 return Response(status=status.HTTP_200_OK)
         except Exception as e:
             print(e)
+            return Response(status=status.HTTP_400_BAD_REQUEST)
+
+
+class NaverLogIn(APIView):
+    def post(self, request):
+        try:
+            print(11)
+            code = request.data.get("code")
+            client_id = "elTLUJKLSF7kLinI4yRu"
+            client_secret = "5u90PNSSdL"
+
+            # 1. 액세스 토큰 요청
+            token_request_url = "https://nid.naver.com/oauth2.0/token"
+            token_request_data = {
+                "grant_type": "authorization_code",
+                "client_id": client_id,
+                "client_secret": client_secret,
+                "code": code,
+                "state": "test",
+                "redirect_uri": "http://127.0.0.1:3000/social/naver",
+            }
+            token_response = requests.post(token_request_url, data=token_request_data)
+            token_data = token_response.json()
+            access_token = token_data.get("access_token")
+
+            # 2. 프로필 정보 요청
+            profile_request_url = "https://openapi.naver.com/v1/nid/me"
+            profile_response = requests.get(
+                profile_request_url,
+                headers={"Authorization": f"Bearer {access_token}"},
+            )
+            profile_data = profile_response.json()
+
+            # 3. 사용자 생성 또는 로그인
+            naver_account = profile_data.get("response")
+            try:
+                user = User.objects.get(username=naver_account.get("email"))
+                login(request, user)
+                return Response(status=status.HTTP_200_OK)
+            except User.DoesNotExist:
+                user = User.objects.create(
+                    username=naver_account.get("email"),
+                    name=naver_account.get("name"),
+                    # 프로필 이미지가 제공되는 경우에만 사용
+                    avatar=naver_account.get("profile_image"),
+                )
+                user.set_unusable_password()
+                user.save()
+                login(request, user)
+                return Response(status=status.HTTP_200_OK)
+        except Exception as e:
             return Response(status=status.HTTP_400_BAD_REQUEST)

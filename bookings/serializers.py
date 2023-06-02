@@ -44,10 +44,16 @@ class CreateRoomBookingSerializer(serializers.ModelSerializer):
 
 
 class PublicBookingSerializer(serializers.ModelSerializer):
+    
+    user = serializers.CharField()
+    room = serializers.CharField()
+    
     class Meta:
         model = Booking
         fields = (
             "pk",
+            "user",
+            "room",
             "check_in",
             "check_out",
             "experience_time",
